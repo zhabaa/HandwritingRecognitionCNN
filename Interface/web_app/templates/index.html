@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Pixel Drawing</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <h1>Drawing Canvas</h1>
+    <canvas id="drawingCanvas"></canvas>
+    <div class="controls">
+        <button id="clearButton">Clear Canvas</button>
+        <button id="saveButton">Save Drawing</button>
+    </div>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

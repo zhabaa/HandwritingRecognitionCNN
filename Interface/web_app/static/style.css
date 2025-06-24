@@ -1,0 +1,45 @@
+body {
+    font-family: Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+    margin: 0;
+}
+
+#drawingCanvas {
+    border: 2px solid #333;
+    background-color: #fff;
+    width: 512px;
+    height: 512px;
+    image-rendering: pixelated;
+    touch-action: none;
+}
+
+.controls {
+    margin-top: 15px;
+}
+
+button {
+    padding: 8px 16px;
+    margin: 0 5px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+button:hover {
+    background-color: #45a049;
+}
+
+
+#saveButton {
+    background-color: #2196F3;
+}
+
+#saveButton:hover {
+    background-color: #0b7dda;
+}
