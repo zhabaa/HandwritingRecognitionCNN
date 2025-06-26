@@ -1,0 +1,127 @@
+Loading training data...
+Processed 1000 images from data/dataset/train/mnist_train.csv
+Processed 2000 images from data/dataset/train/mnist_train.csv
+Processed 3000 images from data/dataset/train/mnist_train.csv
+Processed 4000 images from data/dataset/train/mnist_train.csv
+Processed 5000 images from data/dataset/train/mnist_train.csv
+Processed 6000 images from data/dataset/train/mnist_train.csv
+Processed 7000 images from data/dataset/train/mnist_train.csv
+Processed 8000 images from data/dataset/train/mnist_train.csv
+Processed 9000 images from data/dataset/train/mnist_train.csv
+Processed 10000 images from data/dataset/train/mnist_train.csv
+Processed 11000 images from data/dataset/train/mnist_train.csv
+Processed 12000 images from data/dataset/train/mnist_train.csv
+Processed 13000 images from data/dataset/train/mnist_train.csv
+Processed 14000 images from data/dataset/train/mnist_train.csv
+Processed 15000 images from data/dataset/train/mnist_train.csv
+Processed 16000 images from data/dataset/train/mnist_train.csv
+Processed 17000 images from data/dataset/train/mnist_train.csv
+Processed 18000 images from data/dataset/train/mnist_train.csv
+Processed 19000 images from data/dataset/train/mnist_train.csv
+Processed 20000 images from data/dataset/train/mnist_train.csv
+Processed 21000 images from data/dataset/train/mnist_train.csv
+Processed 22000 images from data/dataset/train/mnist_train.csv
+Processed 23000 images from data/dataset/train/mnist_train.csv
+Processed 24000 images from data/dataset/train/mnist_train.csv
+Processed 25000 images from data/dataset/train/mnist_train.csv
+Processed 26000 images from data/dataset/train/mnist_train.csv
+Processed 27000 images from data/dataset/train/mnist_train.csv
+Processed 28000 images from data/dataset/train/mnist_train.csv
+Processed 29000 images from data/dataset/train/mnist_train.csv
+Processed 30000 images from data/dataset/train/mnist_train.csv
+Processed 31000 images from data/dataset/train/mnist_train.csv
+Processed 32000 images from data/dataset/train/mnist_train.csv
+Processed 33000 images from data/dataset/train/mnist_train.csv
+Processed 34000 images from data/dataset/train/mnist_train.csv
+Processed 35000 images from data/dataset/train/mnist_train.csv
+Processed 36000 images from data/dataset/train/mnist_train.csv
+Processed 37000 images from data/dataset/train/mnist_train.csv
+Processed 38000 images from data/dataset/train/mnist_train.csv
+Processed 39000 images from data/dataset/train/mnist_train.csv
+Processed 40000 images from data/dataset/train/mnist_train.csv
+Processed 41000 images from data/dataset/train/mnist_train.csv
+Processed 42000 images from data/dataset/train/mnist_train.csv
+Processed 43000 images from data/dataset/train/mnist_train.csv
+Processed 44000 images from data/dataset/train/mnist_train.csv
+Processed 45000 images from data/dataset/train/mnist_train.csv
+Processed 46000 images from data/dataset/train/mnist_train.csv
+Processed 47000 images from data/dataset/train/mnist_train.csv
+Processed 48000 images from data/dataset/train/mnist_train.csv
+Processed 49000 images from data/dataset/train/mnist_train.csv
+Processed 50000 images from data/dataset/train/mnist_train.csv
+Processed 51000 images from data/dataset/train/mnist_train.csv
+Processed 52000 images from data/dataset/train/mnist_train.csv
+Processed 53000 images from data/dataset/train/mnist_train.csv
+Processed 54000 images from data/dataset/train/mnist_train.csv
+Processed 55000 images from data/dataset/train/mnist_train.csv
+Processed 56000 images from data/dataset/train/mnist_train.csv
+Processed 57000 images from data/dataset/train/mnist_train.csv
+Processed 58000 images from data/dataset/train/mnist_train.csv
+Processed 59000 images from data/dataset/train/mnist_train.csv
+Processed 60000 images from data/dataset/train/mnist_train.csv
+Successfully loaded 60000 images from data/dataset/train/mnist_train.csv
+
+Loading test data...
+Processed 1000 images from data/dataset/test/mnist_test.csv
+Processed 2000 images from data/dataset/test/mnist_test.csv
+Processed 3000 images from data/dataset/test/mnist_test.csv
+Processed 4000 images from data/dataset/test/mnist_test.csv
+Processed 5000 images from data/dataset/test/mnist_test.csv
+Processed 6000 images from data/dataset/test/mnist_test.csv
+Processed 7000 images from data/dataset/test/mnist_test.csv
+Processed 8000 images from data/dataset/test/mnist_test.csv
+Processed 9000 images from data/dataset/test/mnist_test.csv
+Processed 10000 images from data/dataset/test/mnist_test.csv
+Successfully loaded 10000 images from data/dataset/test/mnist_test.csv
+
+Data loaded successfully:
+Training set: 60000 images
+Test set: 10000 images
+Try to encode
+Encoded
+Epoch 0, avg loss = 2.49762
+Model improved. Saved to model_weights.txt
+Epoch 1, avg loss = 1.04585
+Model improved. Saved to model_weights.txt
+Epoch 2, avg loss = 0.893138
+Model improved. Saved to model_weights.txt
+Epoch 3, avg loss = 0.792694
+Model improved. Saved to model_weights.txt
+Epoch 4, avg loss = 0.736919
+Model improved. Saved to model_weights.txt
+Epoch 5, avg loss = 0.700315
+Model improved. Saved to model_weights.txt
+Epoch 6, avg loss = 0.681036
+Model improved. Saved to model_weights.txt
+Epoch 7, avg loss = 0.66689
+Model improved. Saved to model_weights.txt
+Epoch 8, avg loss = 0.65461
+Model improved. Saved to model_weights.txt
+Epoch 9, avg loss = 0.644333
+Model improved. Saved to model_weights.txt
+Epoch 10, avg loss = 0.640046
+Model improved. Saved to model_weights.txt
+Epoch 11, avg loss = 0.635159
+Model improved. Saved to model_weights.txt
+Epoch 12, avg loss = 0.631094
+Model improved. Saved to model_weights.txt
+Epoch 13, avg loss = 0.630095
+Model improved. Saved to model_weights.txt
+Epoch 14, avg loss = 0.628922
+Model improved. Saved to model_weights.txt
+Epoch 15, avg loss = 0.629311
+Epoch 16, avg loss = 0.629209
+Epoch 17, avg loss = 0.62464
+Model improved. Saved to model_weights.txt
+Epoch 18, avg loss = 0.625172
+Epoch 19, avg loss = 0.624774
+Epoch 20, avg loss = 0.623217
+Model improved. Saved to model_weights.txt
+Epoch 21, avg loss = 0.619422
+Model improved. Saved to model_weights.txt
+Epoch 22, avg loss = 0.618952
+Model improved. Saved to model_weights.txt
+Epoch 23, avg loss = 0.622873
+Epoch 24, avg loss = 0.625157
+Epoch 25, avg loss = 0.62273
+Early stopping: no improvement for 3 epochs.
