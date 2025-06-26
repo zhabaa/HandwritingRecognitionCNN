@@ -1,132 +1,192 @@
 import sys
-from PyQt6.QtWidgets import (QApplication, QWidget, QLabel, QVBoxLayout,
-                             QHBoxLayout, QPushButton, QScrollArea)
-from PyQt6.QtGui import QImage, QPainter, QPen, QColor, QTransform
-from PyQt6.QtCore import Qt, QSize, QRect
 import numpy as np
+from PyQt6.QtWidgets import (
+    QApplication,
+    QMainWindow,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QProgressBar,
+)
+from PyQt6.QtGui import QImage, QPixmap, QPainter, QPen
+from PyQt6.QtCore import Qt, QSize, QTimer, QFile, QTextStream
 
+from modelNN.model import DigitPredictor
 
-class DrawingBoard(QWidget):
-    def __init__(self, width, height, scale_factor, parent=None):
+class DrawingCanvas(QWidget):
+    def __init__(self, parent=None):
         super().__init__(parent)
-        self._width = width
-        self._height = height
+        self.setFixedSize(280, 280)
+        self.real_size = 28
         
-        self.scale_factor = scale_factor
-        
-        self.image = QImage(self._width, self._height, QImage.Format.Format_RGB32)
+        self.image = QImage(QSize(self.real_size, self.real_size), QImage.Format.Format_RGB32)
         self.image.fill(Qt.GlobalColor.white)
-        
+
         self.drawing = False
-        self.brush_size = 3
-        self.brush_color = Qt.GlobalColor.black
         self.last_point = None
-
-    def set_pixel(self, x, y, color):
-        if 0 <= x < self._width and 0 <= y < self._height:
-            self.image.setPixel(x, y, color.value)
-            self.update()
-
-    def pixel_coords(self, event_x, event_y):
-        pixel_x = int(event_x / self.scale_factor)
-        pixel_y = int(event_y / self.scale_factor)
-        return pixel_x, pixel_y
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
             self.drawing = True
-            self.last_point = event.pos()
-            pixel_x, pixel_y = self.pixel_coords(event.pos().x(), event.pos().y())
-            self.set_pixel(pixel_x, pixel_y, self.brush_color)
+            # Масштабируем координаты до реального размера изображения
+            self.last_point = self.scale_point(event.pos())
 
     def mouseMoveEvent(self, event):
-        if self.drawing:
-            pixel_x, pixel_y = self.pixel_coords(event.pos().x(), event.pos().y())
-
+        if self.drawing and self.last_point:
             painter = QPainter(self.image)
-            painter.setPen(QPen(self.brush_color, self.brush_size, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
-
-            last_pixel_x, last_pixel_y = self.pixel_coords(self.last_point.x(), self.last_point.y())
-
-            painter.drawLine(last_pixel_x, last_pixel_y, pixel_x, pixel_y)
-            self.last_point = event.pos()
+            painter.setPen(
+                QPen(
+                    Qt.GlobalColor.black,
+                    2,
+                    Qt.PenStyle.SolidLine,  # Толщина пера уменьшена для маленького изображения
+                    Qt.PenCapStyle.RoundCap,
+                    Qt.PenJoinStyle.RoundJoin,
+                )
+            )
+            current_point = self.scale_point(event.pos())
+            painter.drawLine(self.last_point, current_point)
+            self.last_point = current_point
             self.update()
 
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
             self.drawing = False
-            self.last_point = None
 
     def paintEvent(self, event):
         painter = QPainter(self)
-        painter.scale(self.scale_factor, self.scale_factor)
-        painter.drawImage(0, 0, self.image)
+        painter.drawImage(self.rect(), self.image, self.image.rect())
 
-    def clear_image(self):
+    def clear(self):
         self.image.fill(Qt.GlobalColor.white)
         self.update()
 
-    def get_image_data(self):
-        """get изображение в формате np.array"""
-        buffer = self.image.constBits()
-        img = np.frombuffer(buffer, np.uint8).reshape((self._height, self._width, 4))
-        return img[:,:,:3]
+    def scale_point(self, point):
+        x = max(0, min(self.real_size - 1, int(point.x() * self.real_size / self.width())))
+        y = max(0, min(self.real_size - 1, int(point.y() * self.real_size / self.height())))
+        return point.__class__(x, y)
 
-    def sizeHint(self):
-        return QSize(self._width * self.scale_factor, self._height * self.scale_factor)
+    def get_image_array(self):
+        ptr = self.image.bits()
+        ptr.setsize(self.image.sizeInBytes()) #type: ignore
+        arr = np.frombuffer(ptr, np.uint8).reshape(self.real_size, self.real_size, 4) #type: ignore
+        return arr[:, :, 0].astype(np.float32) / 255.0
 
 
-class MainWindow(QWidget):
+
+class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Drawing App with Scaled Board")
+        self.predictor = DigitPredictor("D:/oem/HandwritingRecognitionCNN/Interface/modelNN/weights/last_model_weights.pth")
+        self.symbols = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
+        self.init_ui()
+        self.load_styles()
+    
+    def load_styles(self):
+        file = QFile("styles.css")
+        if file.open(QFile.OpenModeFlag.ReadOnly | QFile.OpenModeFlag.Text):
+            stream = QTextStream(file)
+            self.setStyleSheet(stream.readAll())
+            file.close()
 
-        self.image_width = 64
-        self.image_height = 64
-        self.scale_factor = 8
+    def init_ui(self):
+        self.setWindowTitle('Распознавание рукописных цифр')
+        self.setFixedSize(900, 500)
 
-        self.drawing_board = DrawingBoard(self.image_width, self.image_height, self.scale_factor)
-
-        self.clear_button = QPushButton("Clear")
-        self.clear_button.clicked.connect(self.drawing_board.clear_image)
-
-        # хз хочу real time предикт
-        # TODO надо кнопку убрать
-        # но бля заебемся наверное хз можно для первых тестов оставить wwww
-
-        self.predict_button = QPushButton("Predict")
-        self.predict_button.clicked.connect(self.predict)
-
-        self.prediction_label = QLabel("Prediction: Jlox")
-
-        controls_layout = QHBoxLayout()
-        controls_layout.addWidget(self.clear_button)
-        controls_layout.addWidget(self.predict_button)
-        controls_layout.addWidget(self.prediction_label)
-
-        main_layout = QVBoxLayout()
-        main_layout.addWidget(self.drawing_board)
-        main_layout.addLayout(controls_layout)
-
-        self.setLayout(main_layout)
-
-    def predict(self):
-        """get изображения и передачи в плюсыыыыы"""
-        image_data = self.drawing_board.get_image_data()
+        self.canvas = DrawingCanvas()
         
-        # тут отправка в предикшн
-        
-        prediction = self.fake_predict(image_data) 
-        self.prediction_label.setText(f"Prediction: {prediction}")
+        self.clear_button = QPushButton("Очистить поле")
+        self.clear_button.clicked.connect(self.canvas.clear)
+        self.clear_button.setFixedWidth(150)
 
-    def fake_predict(self, image_data):
-        """Функция предсказания"""
-        # mozhno tak ostavit' xD
-        return np.random.randint(0, 10)
+        self.prob_labels = []
+        self.prob_bars = []
+        probabilities_layout = QVBoxLayout()
+        probabilities_layout.setSpacing(8)
+
+        for symbol in self.symbols:
+            hbox = QHBoxLayout()
+            hbox.setSpacing(10)
+            
+            label = QLabel(f"{symbol}:")
+            label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            
+            prob_bar = QProgressBar()
+            prob_bar.setRange(0, 100)
+            prob_bar.setFixedHeight(20)
+            prob_bar.setTextVisible(False)
+
+            
+            prob_label = QLabel("0%")
+            prob_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+
+            hbox.addWidget(label)
+            hbox.addWidget(prob_bar)
+            hbox.addWidget(prob_label)
+
+            probabilities_layout.addLayout(hbox)
+            self.prob_labels.append(prob_label)
+            self.prob_bars.append(prob_bar)
+
+        left_panel = QVBoxLayout()
+        left_panel.setSpacing(20)
+        left_panel.setContentsMargins(20, 20, 20, 20)
+        left_panel.addWidget(self.canvas)
+        left_panel.addWidget(self.clear_button, 0, Qt.AlignmentFlag.AlignCenter)
+
+        right_panel = QVBoxLayout()
+        right_panel.setSpacing(20)
+        right_panel.setContentsMargins(20, 20, 20, 20)
+        right_panel.addLayout(probabilities_layout)
+        right_panel.addStretch()
+
+        main_layout = QHBoxLayout()
+        main_layout.setSpacing(0)
+        main_layout.addLayout(left_panel, stretch=2)
+        main_layout.addLayout(right_panel, stretch=3)
+
+        container = QWidget()
+        container.setLayout(main_layout)
+        self.setCentralWidget(container)
+
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.update_prediction)
+        self.timer.start(200)
+
+    def update_prediction(self):
+        image_array = self.canvas.get_image_array()
+        probs, predicted_idx = self.predictor.predict(image_array)
+
+        for i, (prob, label, bar) in enumerate(zip(probs, self.prob_labels, self.prob_bars)):
+            percent = int(round(prob * 100))
+            label.setText(f"{percent}%")
+            
+            # Обновляем стиль и значение прогресс-бара
+            if i == predicted_idx:
+                bar.setStyleSheet(
+                    """
+                    QProgressBar::chunk {
+                        background: #4CAF50;
+                        border-radius: 3px;
+                    }
+                    """
+                )
+            else:
+                bar.setStyleSheet(
+                    """
+                    QProgressBar::chunk {
+                        background: #E0E0E0;
+                        border-radius: 3px;
+                    }
+                    """
+                )
+            
+            bar.setValue(percent)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     app = QApplication(sys.argv)
-    main_window = MainWindow()
-    main_window.show()
+    window = MainWindow()
+    window.show()
     sys.exit(app.exec())

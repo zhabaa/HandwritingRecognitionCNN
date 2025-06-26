@@ -1,18 +1,37 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Pixel Drawing</title>
+    <title>Digit Recognizer</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <h1>Drawing Canvas</h1>
-    <canvas id="drawingCanvas"></canvas>
-    <div class="controls">
-        <button id="clearButton">Clear Canvas</button>
-        <button id="saveButton">Save Drawing</button>
+    <div class="container">
+        <h1>Digit Recognizer</h1>
+        
+        <div class="main-content">
+            <div class="canvas-container">
+                <canvas id="drawingCanvas"></canvas>
+                <div class="controls">
+                    <button id="clearButton">Clear</button>
+                </div>
+            </div>
+            
+            <div class="results">
+                <div class="prediction">
+                    <h2>Prediction: <span id="predictedDigit">-</span></h2>
+                    <div class="confidence">Confidence: <span id="confidence">0%</span></div>
+                </div>
+                
+                <div class="probabilities">
+                    <h3>Probabilities:</h3>
+                    <div class="prob-bars" id="probabilityBars"></div>
+                </div>
+            </div>
+        </div>
     </div>
+    
     <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>

@@ -1,0 +1,54 @@
+/* Основные стили приложения */
+QMainWindow {
+    background-color: #f5f5f5;
+}
+
+QLabel {
+    font-family: Arial;
+}
+
+QPushButton {
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    font-size: 14px;
+    border-radius: 4px;
+}
+
+QPushButton:hover {
+    background-color: #45a049;
+}
+
+/* Стили для области рисования */
+DrawingCanvas {
+    background-color: white;
+    border: 1px solid #ddd;
+}
+
+/* Стили для результата */
+.result-label {
+    font-size: 24px;
+    font-weight: bold;
+    color: #333;
+    margin-bottom: 20px;
+}
+
+/* Стили прогресс-баров */
+QProgressBar {
+    border: 1px solid #BDBDBD;
+    border-radius: 4px;
+    background: #F5F5F5;
+}
+
+QProgressBar::chunk {
+    border-radius: 3px;
+}
+
+QProgressBar::chunk.default {
+    background: #E0E0E0;
+}
+
+QProgressBar::chunk.highlighted {
+    background: #4CAF50;
+}

@@ -2,94 +2,171 @@ document.addEventListener('DOMContentLoaded', function() {
     const canvas = document.getElementById('drawingCanvas');
     const ctx = canvas.getContext('2d');
     const clearButton = document.getElementById('clearButton');
-
-    canvas.width = 64;
-    canvas.height = 64;
+    const predictedDigitElement = document.getElementById('predictedDigit');
+    const confidenceElement = document.getElementById('confidence');
+    const probabilityBarsElement = document.getElementById('probabilityBars');
     
+    // Настройка canvas
+    canvas.width = 280;
+    canvas.height = 280;
     ctx.fillStyle = 'white';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.strokeStyle = 'black';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 15;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-
+    
+    // Создаем элементы для вероятностей
+    for (let i = 0; i < 10; i++) {
+        const barContainer = document.createElement('div');
+        barContainer.className = 'prob-bar';
+        
+        const label = document.createElement('div');
+        label.className = 'prob-label';
+        label.innerHTML = `<span>${i}</span><span class="prob-value">0%</span>`;
+        
+        const barBg = document.createElement('div');
+        barBg.className = 'prob-bar-bg';
+        
+        const barFill = document.createElement('div');
+        barFill.className = 'prob-bar-fill';
+        barFill.dataset.digit = i;
+        
+        barBg.appendChild(barFill);
+        barContainer.appendChild(label);
+        barContainer.appendChild(barBg);
+        probabilityBarsElement.appendChild(barContainer);
+    }
+    
+    const probValueElements = document.querySelectorAll('.prob-value');
+    
+    // Переменные для рисования
     let isDrawing = false;
     let lastX = 0;
     let lastY = 0;
-
+    let predictionTimeout;
+    
+    // Функции для рисования
+    function startDrawing(e) {
+        isDrawing = true;
+        [lastX, lastY] = getCanvasCoords(e);
+    }
+    
+    function draw(e) {
+        if (!isDrawing) return;
+        
+        const [x, y] = getCanvasCoords(e);
+        
+        ctx.beginPath();
+        ctx.moveTo(lastX, lastY);
+        ctx.lineTo(x, y);
+        ctx.stroke();
+        
+        [lastX, lastY] = [x, y];
+        
+        // Запускаем предсказание с задержкой
+        clearTimeout(predictionTimeout);
+        predictionTimeout = setTimeout(predictDigit, 200);
+    }
+    
+    function stopDrawing() {
+        isDrawing = false;
+        predictDigit();
+    }
+    
     function getCanvasCoords(e) {
         const rect = canvas.getBoundingClientRect();
         const scaleX = canvas.width / rect.width;
         const scaleY = canvas.height / rect.height;
-        return {
-            x: (e.clientX - rect.left) * scaleX,
-            y: (e.clientY - rect.top) * scaleY
-        };
-    }
-
-    function startDrawing(e) {
-        isDrawing = true;
-        const coords = getCanvasCoords(e);
-        [lastX, lastY] = [coords.x, coords.y];
         
-        ctx.beginPath();
-        ctx.arc(lastX, lastY, ctx.lineWidth/2, 0, Math.PI*2);
-        ctx.fill();
-    }
-
-    function draw(e) {
-        if (!isDrawing) return;
+        const clientX = e.clientX || e.touches[0].clientX;
+        const clientY = e.clientY || e.touches[0].clientY;
         
-        const coords = getCanvasCoords(e);
-        
-        ctx.beginPath();
-        ctx.moveTo(lastX, lastY);
-        ctx.lineTo(coords.x, coords.y);
-        ctx.stroke();
-        
-        [lastX, lastY] = [coords.x, coords.y];
+        return [
+            (clientX - rect.left) * scaleX,
+            (clientY - rect.top) * scaleY
+        ];
     }
-
-    function stopDrawing() {
-        isDrawing = false;
+    
+    // Функция предсказания цифры
+    async function predictDigit() {
+        const imageData = canvas.toDataURL('image/png');
+        
+        try {
+            const response = await fetch('/predict', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ image: imageData })
+            });
+            
+            const result = await response.json();
+            
+            // Обновляем интерфейс
+            predictedDigitElement.textContent = result.predicted;
+            const confidence = (result.probabilities[result.predicted] * 100).toFixed(1);
+            confidenceElement.textContent = `${confidence}%`;
+            
+            // Обновляем вероятности
+            result.probabilities.forEach((prob, i) => {
+                const percentage = (prob * 100).toFixed(1);
+                probValueElements[i].textContent = `${percentage}%`;
+                
+                const barFill = document.querySelector(`.prob-bar-fill[data-digit="${i}"]`);
+                barFill.style.width = `${percentage}%`;
+                
+                // Подсвечиваем максимальную вероятность
+                if (i === result.predicted) {
+                    barFill.style.backgroundColor = '#e74c3c';
+                } else {
+                    barFill.style.backgroundColor = '#2ecc71';
+                }
+            });
+            
+        } catch (error) {
+            console.error('Prediction error:', error);
+        }
     }
-
+    
+    // Очистка canvas
+    function clearCanvas() {
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        predictedDigitElement.textContent = '-';
+        confidenceElement.textContent = '0%';
+        
+        document.querySelectorAll('.prob-bar-fill').forEach(bar => {
+            bar.style.width = '0%';
+            bar.style.backgroundColor = '#2ecc71';
+        });
+        
+        document.querySelectorAll('.prob-value').forEach(el => {
+            el.textContent = '0%';
+        });
+    }
+    
+    // Обработчики событий
     canvas.addEventListener('mousedown', startDrawing);
     canvas.addEventListener('mousemove', draw);
     canvas.addEventListener('mouseup', stopDrawing);
     canvas.addEventListener('mouseout', stopDrawing);
-
-    clearButton.addEventListener('click', function() {
-        ctx.fillStyle = 'white';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-    });
-
-    function handleTouchStart(e) {
+    
+    canvas.addEventListener('touchstart', (e) => {
         e.preventDefault();
         startDrawing(e.touches[0]);
-    }
+    });
     
-    function handleTouchMove(e) {
+    canvas.addEventListener('touchmove', (e) => {
         e.preventDefault();
         draw(e.touches[0]);
-    }
-
-    canvas.addEventListener('touchstart', handleTouchStart);
-    canvas.addEventListener('touchmove', handleTouchMove);
-    canvas.addEventListener('touchend', stopDrawing);
-
-    document.getElementById('saveButton').addEventListener('click', function() {
-        const link = document.createElement('a');
-        link.download = 'drawing-' + new Date().toISOString().slice(0, 10) + '.png';
-        
-        canvas.toBlob(function(blob) {
-            link.href = URL.createObjectURL(blob);
-            
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            
-            setTimeout(() => URL.revokeObjectURL(link.href), 100);
-        }, 'image/png');
     });
+    
+    canvas.addEventListener('touchend', stopDrawing);
+    
+    clearButton.addEventListener('click', clearCanvas);
+    
+    // Инициализация
+    clearCanvas();
 });

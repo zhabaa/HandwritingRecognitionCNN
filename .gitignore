@@ -1,0 +1,6 @@
+.gitignore
+Interface/.venv
+Interface/data
+Interface/requirements.txt
+__pycache__
+Interface/run.bat
