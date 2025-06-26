@@ -178,6 +178,21 @@ public:
         return result;
     }
 
+    void save_to_bin_file(const std::string& filename) const {
+        std::ofstream out(filename, std::ios::binary);
+        if (!out) {
+            throw std::runtime_error("Cannot open file for writing: " + filename);
+        }
+        
+        // Write matrix dimension
+        out.write(reinterpret_cast<const char*>(&rows), sizeof(rows));
+        out.write(reinterpret_cast<const char*>(&cols), sizeof(cols));
+        
+        // Write matrix data
+        out.write(reinterpret_cast<const char*>(matrix.data()), 
+                matrix.size() * sizeof(long double));
+    }
+
     void randomize(double min = -1.0, double max = 1.0) {
         #pragma omp parallel
         {
@@ -217,12 +232,12 @@ public:
             throw invalid_argument("Matrix sizes must match");
 
         long double res = 0.0L;
-        constexpr long double EPS = 1e-15L;  // Защита от log(0)
+        constexpr long double EPS = 1e-15L;
 
         #pragma omp parallel for collapse(2) reduction(+:res)
         for (size_t i = 0; i < rows; i++) {
             for (size_t j = 0; j < cols; j++) {
-                long double prob = std::max((*this)(i, j), EPS);  // clamp от 1e-15 и выше
+                long double prob = std::max((*this)(i, j), EPS);
                 res += -1.0L * ideal(i, j) * log(prob);
             }
         }
@@ -230,30 +245,11 @@ public:
         return res;
     }
 
-    // Matrix softmax() const {
-    //     Matrix result(rows, cols);
-    //     long double exp_sum = 0.0L;
-
-    //     #pragma omp parallel for collapse(2) reduction(+:exp_sum)
-    //     for (size_t i = 0; i < rows; i++)
-    //         for (size_t j = 0; j < cols; j++) {
-    //             result(i, j) = exp((*this)(i, j));
-    //             exp_sum += result(i, j);
-    //         }
-
-    //     #pragma omp parallel for collapse(2)
-    //     for (size_t i = 0; i < rows; i++)
-    //         for (size_t j = 0; j < cols; j++)
-    //             result(i, j) /= exp_sum;
-    //     return result;
-    // }
-
     Matrix softmax() const {
         Matrix result(rows, cols);
 
         #pragma omp parallel for
         for (size_t i = 0; i < rows; i++) {
-            // Находим максимум по строке для числовой стабильности
             long double max_val = (*this)(i, 0);
             for (size_t j = 1; j < cols; j++) {
                 if ((*this)(i, j) > max_val) {
@@ -261,14 +257,12 @@ public:
                 }
             }
 
-            // Считаем сумму экспонент (с учётом вычитания max_val)
             long double sum_exp = 0.0L;
             for (size_t j = 0; j < cols; j++) {
                 result(i, j) = exp((*this)(i, j) - max_val);
                 sum_exp += result(i, j);
             }
 
-            // Нормируем — делим на сумму
             for (size_t j = 0; j < cols; j++) {
                 result(i, j) /= sum_exp;
             }
@@ -506,7 +500,6 @@ void readMNISTCSV(const std::string& filename,
                 if (!std::getline(ss, value, ',')) {
                     throw std::runtime_error("Invalid CSV format in file: " + filename);
                 }
-                // img(i, j) = (std::stod(value) == 0) ? 0 : 1;
                 img(i, j) = std::stod(value) / 255;
             }
         }
@@ -643,6 +636,7 @@ int main() {
 
         const int EARLY_STOPPING_PATIENCE = 3;
         const std::string MODEL_FILE = "model_weights.txt";
+        const std::string BIN_MODEL_FILE = "model_weights.bin";
         long double best_loss = std::numeric_limits<long double>::max();
         int epochs_no_improve = 0;
 
@@ -744,6 +738,12 @@ int main() {
                 best_loss = epoch_loss;
                 epochs_no_improve = 0;
                 save_model(K_1, K_2, W_1, W_2, b_1, b_2, MODEL_FILE);
+                K_1.save_to_bin_file(BIN_MODEL_FILE);
+                K_2.save_to_bin_file(BIN_MODEL_FILE);
+                W_1.save_to_bin_file(BIN_MODEL_FILE);
+                W_2.save_to_bin_file(BIN_MODEL_FILE);
+                b_1.save_to_bin_file(BIN_MODEL_FILE);
+                b_2.save_to_bin_file(BIN_MODEL_FILE);
                 std::cout << "Model improved. Saved to " << MODEL_FILE << std::endl;
             } else {
                 epochs_no_improve++;
