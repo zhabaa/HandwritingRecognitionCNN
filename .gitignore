@@ -1,3 +1,5 @@
+mnist_test.csv
+mnist_train.csv
 .gitignore
 Interface/.venv
 Interface/data
