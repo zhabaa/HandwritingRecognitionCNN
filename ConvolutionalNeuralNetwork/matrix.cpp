@@ -230,21 +230,50 @@ public:
         return res;
     }
 
+    // Matrix softmax() const {
+    //     Matrix result(rows, cols);
+    //     long double exp_sum = 0.0L;
+
+    //     #pragma omp parallel for collapse(2) reduction(+:exp_sum)
+    //     for (size_t i = 0; i < rows; i++)
+    //         for (size_t j = 0; j < cols; j++) {
+    //             result(i, j) = exp((*this)(i, j));
+    //             exp_sum += result(i, j);
+    //         }
+
+    //     #pragma omp parallel for collapse(2)
+    //     for (size_t i = 0; i < rows; i++)
+    //         for (size_t j = 0; j < cols; j++)
+    //             result(i, j) /= exp_sum;
+    //     return result;
+    // }
+
     Matrix softmax() const {
         Matrix result(rows, cols);
-        long double exp_sum = 0.0L;
 
-        #pragma omp parallel for collapse(2) reduction(+:exp_sum)
-        for (size_t i = 0; i < rows; i++)
-            for (size_t j = 0; j < cols; j++) {
-                result(i, j) = exp((*this)(i, j));
-                exp_sum += result(i, j);
+        #pragma omp parallel for
+        for (size_t i = 0; i < rows; i++) {
+            // Находим максимум по строке для числовой стабильности
+            long double max_val = (*this)(i, 0);
+            for (size_t j = 1; j < cols; j++) {
+                if ((*this)(i, j) > max_val) {
+                    max_val = (*this)(i, j);
+                }
             }
 
-        #pragma omp parallel for collapse(2)
-        for (size_t i = 0; i < rows; i++)
-            for (size_t j = 0; j < cols; j++)
-                result(i, j) /= exp_sum;
+            // Считаем сумму экспонент (с учётом вычитания max_val)
+            long double sum_exp = 0.0L;
+            for (size_t j = 0; j < cols; j++) {
+                result(i, j) = exp((*this)(i, j) - max_val);
+                sum_exp += result(i, j);
+            }
+
+            // Нормируем — делим на сумму
+            for (size_t j = 0; j < cols; j++) {
+                result(i, j) /= sum_exp;
+            }
+        }
+
         return result;
     }
 
@@ -437,6 +466,14 @@ public:
 
         return unpooled;
     }
+
+    void serialize(std::ostream& out) const {
+        out << rows << " " << cols << "\n";
+        for (int i = 0; i < rows; ++i)
+            for (int j = 0; j < cols; ++j)
+                out << matrix[i * cols + j] << " ";
+        out << "\n";
+    }
     
 };
 
@@ -469,7 +506,8 @@ void readMNISTCSV(const std::string& filename,
                 if (!std::getline(ss, value, ',')) {
                     throw std::runtime_error("Invalid CSV format in file: " + filename);
                 }
-                img(i, j) = (std::stod(value) == 0) ? 0 : 1;
+                // img(i, j) = (std::stod(value) == 0) ? 0 : 1;
+                img(i, j) = std::stod(value) / 255;
             }
         }
 
@@ -497,6 +535,17 @@ vector<Matrix> one_hot_encoding_labels(const vector<int>& labels) {
     return one_hot_encoded_labels;
 }
 
+void save_model(const Matrix& K1, const Matrix& K2,
+                const Matrix& W1, const Matrix& W2,
+                const Matrix& b1, const Matrix& b2,
+                const std::string& filename) {
+    std::ofstream out(filename);
+    if (!out.is_open()) throw std::runtime_error("Cannot open model file for writing");
+    K1.serialize(out); K2.serialize(out);
+    W1.serialize(out); W2.serialize(out);
+    b1.serialize(out); b2.serialize(out);
+    out.close();
+}
 
 #define PICTURE_DIM 28
 #define KERNEL_DIM 3
@@ -507,7 +556,7 @@ vector<Matrix> one_hot_encoding_labels(const vector<int>& labels) {
 #define H_DIM 128
 
 
-#define LEARNING_RATE 0.0002
+#define LEARNING_RATE 0.0001
 #define NUM_EPOCHS 400
 #define BATCH_SIZE 50
 
@@ -587,155 +636,122 @@ int main() {
         Matrix dL_du1(PICTURE_DIM, PICTURE_DIM);
         Matrix dL_dk1(KERNEL_DIM, KERNEL_DIM);
 
+
+
+
         vector<long double> loss_arr;
 
+        const int EARLY_STOPPING_PATIENCE = 3;
+        const std::string MODEL_FILE = "model_weights.txt";
+        long double best_loss = std::numeric_limits<long double>::max();
+        int epochs_no_improve = 0;
+
+        const int batch_size = 64;
+        const int num_samples = 60000;
+
         for (int ep = 0; ep < NUM_EPOCHS; ep++) {
-            for (int i = 0; i < 3000; i++) {
+            long double epoch_loss = 0;
 
-                // std::cout << "Epoch: " << ep << ", Step: " << i << " Forward pass" << std::endl;
-                Matrix X = train_images[i];
-                Matrix Y = train_labels_encoded[i];
+            for (int i = 0; i < num_samples; i += batch_size) {
+                long double batch_loss = 0;
 
-                // cout << X << endl;
-                // Forward
+                int actual_batch_size = std::min(batch_size, num_samples - i);
 
-                //Clonvolution layer
-                // cout << "Count U_1" << endl;
-                U_1 = X.convolve(K_1);
-                // cout << U_1 << endl;
+                Matrix avg_dL_dw1(INPUT_DIM, H_DIM, 0.0);
+                Matrix avg_dL_dw2(H_DIM, OUT_DIM, 0.0);
+                Matrix avg_dL_db1(1, H_DIM, 0.0);
+                Matrix avg_dL_db2(1, OUT_DIM, 0.0);
+                Matrix avg_dL_dk1(KERNEL_DIM, KERNEL_DIM, 0.0);
+                Matrix avg_dL_dk2(KERNEL_DIM, KERNEL_DIM, 0.0);
 
-                // cout << "Count V_1_" << endl;
-                V_1_ = U_1.ReLU();
-                // cout << V_1_ << endl;
+                for (int j = i; j < i + actual_batch_size; ++j) {
+                    Matrix X = train_images[j];
+                    Matrix Y = train_labels_encoded[j];
 
-                // cout << "Count V_1" << endl;
-                std::tie(V_1, IND_1) = V_1_.max_pooling(POOLING_DIM, POOLING_DIM);
-                // cout << V_1 << endl;
+                    // --- Forward pass ---
+                    U_1 = X.convolve(K_1);
+                    V_1_ = U_1.ReLU();
+                    std::tie(V_1, IND_1) = V_1_.max_pooling(POOLING_DIM, POOLING_DIM);
 
-                // cout << "Count U_2" << endl;
-                U_2 = V_1.convolve(K_2);
-                // cout << U_2 << endl;
+                    U_2 = V_1.convolve(K_2);
+                    V_2_ = U_2.ReLU();
+                    std::tie(V_2, IND_2) = V_2_.max_pooling(POOLING_DIM, POOLING_DIM);
 
-                // cout << "Count V_2_" << endl;
-                V_2_ = U_2.ReLU();
-                // cout << V_2_ << endl;
+                    Matrix X_ = V_2.ravel();
+                    T_1 = X_ * W_1 + b_1;
+                    H_1 = T_1.ReLU();
+                    T_2 = H_1 * W_2 + b_2;
+                    Z = T_2.softmax();
 
-                // cout << "Count V_2" << endl;
-                std::tie(V_2, IND_2) = V_2_.max_pooling(POOLING_DIM, POOLING_DIM);
-                // cout << V_2 << endl;
+                    long double L = Z.cross_entropy(Y);
+                    batch_loss += L;
 
-                //Fully-connected layer
-                // cout << "Count X_" << endl;
-                Matrix X_ = V_2.ravel();
-                // cout << X_ << endl;
-                
-                // cout << "Count T_1" << endl;
-                T_1 = X_ * W_1 + b_1;
-                // cout << T_1 << endl;
+                    // --- Backward pass ---
+                    Matrix dL_dt2 = Z - Y;
+                    Matrix dL_dw2 = H_1.T() * dL_dt2;
+                    Matrix dL_db2 = dL_dt2;
 
-                // cout << "Count H_1" << endl;
-                H_1 = T_1.ReLU();
-                // cout << H_1 << endl;
+                    Matrix dL_dh1 = dL_dt2 * W_2.T();
+                    Matrix dL_dt1 = dL_dh1 ^ T_1.ReLU(true);
+                    Matrix dL_dw1 = X_.T() * dL_dt1;
+                    Matrix dL_db1 = dL_dt1;
+                    Matrix dL_dx_ = dL_dt1 * W_1.T();
 
-                // cout << "Count T_2" << endl;
-                T_2 = H_1 * W_2 + b_2;
-                // cout << T_2 << endl;
+                    Matrix dL_dv2 = dL_dx_.unravel(PICTURE_DIM / 4);
+                    Matrix dL_dv2_ = dL_dv2.max_unpooling(IND_2, PICTURE_DIM / 2, PICTURE_DIM / 2);
+                    Matrix dL_du2 = dL_dv2_ ^ U_2.ReLU(true);
+                    Matrix dL_dk2 = V_1.add_padding(KERNEL_DIM - 1, KERNEL_DIM - 1).convolve(dL_du2, false);
 
-                // cout << "Count Z" << endl;
-                Z = T_2.softmax();
-                cout << Z << endl;
-                
-                L = Z.cross_entropy(Y);
+                    Matrix dL_dv1 = dL_du2.convolve(K_2.rot180());
+                    Matrix dL_dv1_ = dL_dv1.max_unpooling(IND_1, PICTURE_DIM, PICTURE_DIM);
+                    Matrix dL_du1 = dL_dv1_ ^ U_1.ReLU(true);
+                    Matrix dL_dk1 = X.add_padding(KERNEL_DIM - 1, KERNEL_DIM - 1).convolve(dL_du1, false);
 
-                // Backward
+                    // --- Накопление градиентов ---
+                    avg_dL_dw1 += dL_dw1;
+                    avg_dL_db1 += dL_db1;
+                    avg_dL_dw2 += dL_dw2;
+                    avg_dL_db2 += dL_db2;
+                    avg_dL_dk1 += dL_dk1;
+                    avg_dL_dk2 += dL_dk2;
+                }
 
-                //Fully-connected layer
-                // cout << "dL_dt2" << endl;
-                dL_dt2 = Z - Y;
-                // cout << dL_dt2 << endl;
+                // --- Усреднение градиентов ---
+                avg_dL_dw1 /= actual_batch_size;
+                avg_dL_db1 /= actual_batch_size;
+                avg_dL_dw2 /= actual_batch_size;
+                avg_dL_db2 /= actual_batch_size;
+                avg_dL_dk1 /= actual_batch_size;
+                avg_dL_dk2 /= actual_batch_size;
 
-                // cout << "dL_dw2" << endl;
-                dL_dw2 = H_1.T() * dL_dt2;
-                // cout << dL_dw2 << endl;
+                // --- Обновление весов ---
+                W_1 -= avg_dL_dw1 * LEARNING_RATE;
+                W_2 -= avg_dL_dw2 * LEARNING_RATE;
+                b_1 -= avg_dL_db1 * LEARNING_RATE;
+                b_2 -= avg_dL_db2 * LEARNING_RATE;
+                K_1 -= avg_dL_dk1 * LEARNING_RATE;
+                K_2 -= avg_dL_dk2 * LEARNING_RATE;
 
-                // cout << "dL_db2" << endl;
-                dL_db2 = dL_dt2;
-                // cout << dL_db2 << endl;
-
-                // cout << "dL_dh1" << endl;
-                dL_dh1 = dL_dt2 * W_2.T();
-                // cout << dL_dh1 << endl;
-
-                // cout << "dL_dt1" << endl;
-                dL_dt1 = dL_dh1 ^ T_1.ReLU(true);
-                // cout << dL_dt1 << endl;
-
-                // cout << "dL_dw1" << endl;
-                dL_dw1 = X_.T() * dL_dt1;
-                // cout << dL_dw1 << endl;
-
-                // cout << "dL_db1" << endl;
-                dL_db1 = dL_dt1;
-                // cout << dL_db1 << endl;
-
-                // cout << "dL_dx_ " << endl;
-                dL_dx_ = dL_dt1 * W_1.T();
-                // cout << dL_dx_ << endl;
-
-
-                //Convolution layer
-                // cout << "dL_dv2" << endl;
-                dL_dv2 = dL_dx_.unravel(PICTURE_DIM / 4);
-                // cout << dL_dv2 << endl;
-
-                // cout << "dL_dv2_" << endl;
-                dL_dv2_ = dL_dv2.max_unpooling(IND_2, PICTURE_DIM / 2, PICTURE_DIM / 2);
-                // cout << dL_dv2_ << endl;
-
-                // cout << "dL_du2" << endl;
-                dL_du2 = dL_dv2_ ^ U_2.ReLU(true);
-                // cout << dL_du2 << endl;
-
-                // cout << "dL_dv1" << endl;
-                dL_dv1 = dL_du2.convolve(K_2.rot180());
-                // cout << dL_dv1 << endl;
-
-                // cout << "dL_dk2" << endl;
-                dL_dk2 = V_1.add_padding(KERNEL_DIM - 1, KERNEL_DIM - 1).convolve(dL_du2, false);
-                // cout << dL_dk2 << endl;
-
-                // cout << "dL_dv1_" << endl;
-                dL_dv1_ = dL_dv1.max_unpooling(IND_1, PICTURE_DIM, PICTURE_DIM);
-                // cout << dL_dv1_ << endl;
-
-                // cout << "dL_du1" << endl;
-                dL_du1 = dL_dv1_ ^ U_1.ReLU(true);
-                // cout << dL_du1 << endl;
-
-                // cout << "dL_dk1" << endl;
-                dL_dk1 = X.add_padding(KERNEL_DIM - 1, KERNEL_DIM - 1).convolve(dL_du1, false);
-                // cout << dL_dk1 << endl;
-
-                //Update 
-                
-                // cout << "Calculate W_1" << endl;
-                W_1 -= dL_dw1 * LEARNING_RATE;
-                // cout << "Calculate W_2" << endl;
-                W_2 -= dL_dw2 * LEARNING_RATE;
-
-                // cout << "Calculate b_1" << endl;
-                b_1 -= dL_db1 * LEARNING_RATE;
-                // cout << "Calculate b_2" << endl;
-                b_2 -= dL_db2 * LEARNING_RATE;
-
-                // cout << "Calculate K_1" << endl;
-                K_1 -= dL_dk1 * LEARNING_RATE;
-                // cout << "Calculate K_2" << endl;
-                K_2 -= dL_dk2 * LEARNING_RATE;
-
-                loss_arr.push_back(L);
-                cout << L << endl;
+                epoch_loss += batch_loss;
             }
+
+    epoch_loss /= (num_samples);
+
+    std::cout << "Epoch " << ep << ", avg loss = " << epoch_loss << std::endl;
+
+            // Early stopping logic
+            if (epoch_loss < best_loss) {
+                best_loss = epoch_loss;
+                epochs_no_improve = 0;
+                save_model(K_1, K_2, W_1, W_2, b_1, b_2, MODEL_FILE);
+                std::cout << "Model improved. Saved to " << MODEL_FILE << std::endl;
+            } else {
+                epochs_no_improve++;
+                if (epochs_no_improve >= EARLY_STOPPING_PATIENCE) {
+                    std::cout << "Early stopping: no improvement for " << EARLY_STOPPING_PATIENCE << " epochs." << std::endl;
+                    break;
+                }
+    }
         }
 
         // for (int i = 0; i < loss_arr.size(); i++) {
