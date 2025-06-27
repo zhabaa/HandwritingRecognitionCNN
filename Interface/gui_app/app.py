@@ -1,5 +1,8 @@
 import sys
+
 import numpy as np
+from PyQt6.QtGui import QImage, QPainter, QPen
+from PyQt6.QtCore import Qt, QSize, QTimer, QFile, QTextStream
 from PyQt6.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -10,17 +13,16 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QProgressBar,
 )
-from PyQt6.QtGui import QImage, QPixmap, QPainter, QPen
-from PyQt6.QtCore import Qt, QSize, QTimer, QFile, QTextStream
-
 from modelNN.model import DigitPredictor
+from config import WEIGHT_PATH
+
 
 class DrawingCanvas(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFixedSize(280, 280)
         self.real_size = 28
-        
+
         self.image = QImage(QSize(self.real_size, self.real_size), QImage.Format.Format_RGB32)
         self.image.fill(Qt.GlobalColor.white)
 
@@ -30,7 +32,6 @@ class DrawingCanvas(QWidget):
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
             self.drawing = True
-            # Масштабируем координаты до реального размера изображения
             self.last_point = self.scale_point(event.pos())
 
     def mouseMoveEvent(self, event):
@@ -40,7 +41,7 @@ class DrawingCanvas(QWidget):
                 QPen(
                     Qt.GlobalColor.black,
                     2,
-                    Qt.PenStyle.SolidLine,  # Толщина пера уменьшена для маленького изображения
+                    Qt.PenStyle.SolidLine,
                     Qt.PenCapStyle.RoundCap,
                     Qt.PenJoinStyle.RoundJoin,
                 )
@@ -69,55 +70,58 @@ class DrawingCanvas(QWidget):
 
     def get_image_array(self):
         ptr = self.image.bits()
-        ptr.setsize(self.image.sizeInBytes()) #type: ignore
-        arr = np.frombuffer(ptr, np.uint8).reshape(self.real_size, self.real_size, 4) #type: ignore
+        ptr.setsize(self.image.sizeInBytes())  # type: ignore
+        arr = np.frombuffer(ptr, np.uint8).reshape(self.real_size, self.real_size, 4)  # type: ignore
         return arr[:, :, 0].astype(np.float32) / 255.0
-
 
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.predictor = DigitPredictor("D:/oem/HandwritingRecognitionCNN/Interface/modelNN/weights/last_model_weights.pth")
+        self.predictor = DigitPredictor(WEIGHT_PATH)
+
         self.symbols = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
         self.init_ui()
         self.load_styles()
-    
+
     def load_styles(self):
         file = QFile("styles.css")
+
         if file.open(QFile.OpenModeFlag.ReadOnly | QFile.OpenModeFlag.Text):
             stream = QTextStream(file)
             self.setStyleSheet(stream.readAll())
             file.close()
 
     def init_ui(self):
-        self.setWindowTitle('Распознавание рукописных цифр')
+        self.setWindowTitle("GUI CNN Recognizer")
         self.setFixedSize(900, 500)
 
         self.canvas = DrawingCanvas()
         
-        self.clear_button = QPushButton("Очистить поле")
+        self.madeBy = QLabel("psychea <3")
+
+        self.clear_button = QPushButton("Clear canvas")
         self.clear_button.clicked.connect(self.canvas.clear)
         self.clear_button.setFixedWidth(150)
 
         self.prob_labels = []
         self.prob_bars = []
+    
         probabilities_layout = QVBoxLayout()
         probabilities_layout.setSpacing(8)
 
         for symbol in self.symbols:
             hbox = QHBoxLayout()
             hbox.setSpacing(10)
-            
+
             label = QLabel(f"{symbol}:")
             label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-            
+
             prob_bar = QProgressBar()
             prob_bar.setRange(0, 100)
             prob_bar.setFixedHeight(20)
             prob_bar.setTextVisible(False)
 
-            
             prob_label = QLabel("0%")
             prob_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
 
@@ -139,6 +143,7 @@ class MainWindow(QMainWindow):
         right_panel.setSpacing(20)
         right_panel.setContentsMargins(20, 20, 20, 20)
         right_panel.addLayout(probabilities_layout)
+        right_panel.addWidget(self.madeBy, 0, Qt.AlignmentFlag.AlignRight)
         right_panel.addStretch()
 
         main_layout = QHBoxLayout()
@@ -152,7 +157,7 @@ class MainWindow(QMainWindow):
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_prediction)
-        self.timer.start(200)
+        self.timer.start(200) # update rate
 
     def update_prediction(self):
         image_array = self.canvas.get_image_array()
@@ -161,8 +166,7 @@ class MainWindow(QMainWindow):
         for i, (prob, label, bar) in enumerate(zip(probs, self.prob_labels, self.prob_bars)):
             percent = int(round(prob * 100))
             label.setText(f"{percent}%")
-            
-            # Обновляем стиль и значение прогресс-бара
+
             if i == predicted_idx:
                 bar.setStyleSheet(
                     """
@@ -181,7 +185,7 @@ class MainWindow(QMainWindow):
                     }
                     """
                 )
-            
+
             bar.setValue(percent)
 
 

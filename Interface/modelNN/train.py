@@ -5,9 +5,8 @@ from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 
 from .model import DigitRecognizer
+from config import WEIGHT_DIR
 
-
-WEIGHT_DIR = './modelNN/weights'
 
 class MNISTTrainer:
     def __init__(self):
@@ -32,21 +31,30 @@ class MNISTTrainer:
 
     def train(self, epoch):
         self.model.train()
+
         for batch_idx, (data, target) in enumerate(self.train_loader):
             data, target = data.to(self.DEVICE), target.to(self.DEVICE)
             self.optimizer.zero_grad()
+        
             output = self.model(data)
             loss = self.criterion(output, target)
+
             loss.backward()
             self.optimizer.step()
 
-            if batch_idx % 200 == 0:
-                print(f"Train Epoch: {epoch} [{batch_idx * len(data)}/{len(self.train_loader.dataset)}] Loss: {loss.item():.4f}") # type: ignore
+            if not batch_idx % 200:
+                print(
+                    f"Train Epoch: \t\t {epoch} \t\t"
+                    f"{batch_idx * len(data)}/{len(self.train_loader.dataset)} \t\t"  # type: ignore
+                    f"Loss: {loss.item():.4f}"
+                )
 
     def test(self):
         self.model.eval()
+
         test_loss = 0
         correct = 0
+    
         with torch.no_grad():
             for data, target in self.test_loader:
                 data, target = data.to(self.DEVICE), target.to(self.DEVICE)
@@ -57,7 +65,13 @@ class MNISTTrainer:
 
         test_loss /= len(self.test_loader.dataset) # type: ignore
         accuracy = 100.0 * correct / len(self.test_loader.dataset) # type: ignore
-        print(f"\nTest set: Average loss: {test_loss:.4f}, Accuracy: {correct}/{len(self.test_loader.dataset)} ({accuracy:.2f}%)\n") # type: ignore
+
+        print(
+            f"\nTest set: \t\t"
+            f"Average loss: {test_loss:.4f} \t\t"
+            f"Accuracy: {correct}/{len(self.test_loader.dataset)} ({accuracy:.2f}%)\n"  # type: ignore
+        )
+    
         return accuracy
 
     def run_training(self):
@@ -69,12 +83,14 @@ class MNISTTrainer:
 
             if current_accuracy > self.best_accuracy:
                 self.best_accuracy = current_accuracy
-                torch.save(self.model.state_dict(), f"{WEIGHT_DIR}/best_model_weights.pth")
-                print(f"Best модель сохранена с точностью {self.best_accuracy:.2f}%")
+                torch.save(self.model.state_dict(), f"{WEIGHT_DIR}/best_model_weights.bin")
 
+                print(f"Best model saved. Accuracy: {self.best_accuracy:.2f}%")
 
-        torch.save(self.model.state_dict(), f"{WEIGHT_DIR}/last_model_weights.pth")
-        print(f"Обучение завершено! Веса сохранены в best_model_weights.pth и last_model_weights.pth")
+        torch.save(self.model.state_dict(), f"{WEIGHT_DIR}/last_model_weights.bin")
+        print(
+            f"Training completed!\n" \
+            f"Weights saved to {WEIGHT_DIR} best and last model weights .bin files\n")
 
 
 trainer = MNISTTrainer()
