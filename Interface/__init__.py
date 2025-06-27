@@ -1,3 +1,3 @@
-from modelNN.model import DigitPredictor
+from modelNN.model import DigitPredictor, DigitRecognizer
 
-__all__ = ['DigitPredictor']
+__all__ = ['DigitPredictor', 'DigitRecognizer']

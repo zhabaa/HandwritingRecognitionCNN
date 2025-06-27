@@ -19,8 +19,5 @@ if "%choice%"=="1" (
 
 ) else (
     echo Invalid choice!
-    pause
     exit /b 1
 )
-
-pause

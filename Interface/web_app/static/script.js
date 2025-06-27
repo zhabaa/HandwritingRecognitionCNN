@@ -5,8 +5,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const predictedDigitElement = document.getElementById('predictedDigit');
     const confidenceElement = document.getElementById('confidence');
     const probabilityBarsElement = document.getElementById('probabilityBars');
-    
-    // Настройка canvas
+
+    // canvas
     canvas.width = 280;
     canvas.height = 280;
     ctx.fillStyle = 'white';
@@ -16,7 +16,7 @@ document.addEventListener('DOMContentLoaded', function() {
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     
-    // Создаем элементы для вероятностей
+    // probs
     for (let i = 0; i < 10; i++) {
         const barContainer = document.createElement('div');
         barContainer.className = 'prob-bar';
@@ -40,16 +40,25 @@ document.addEventListener('DOMContentLoaded', function() {
     
     const probValueElements = document.querySelectorAll('.prob-value');
     
-    // Переменные для рисования
+    // drawing const
     let isDrawing = false;
     let lastX = 0;
     let lastY = 0;
-    let predictionTimeout;
+    let predictionTimeout = null;
     
-    // Функции для рисования
+    // drawing
     function startDrawing(e) {
+        // Проверяем, что нажата левая кнопка мыши (для mouse событий)
+        if (e.type === 'mousedown' && e.button !== 0) return;
+        
         isDrawing = true;
         [lastX, lastY] = getCanvasCoords(e);
+        
+        // Начинаем новый путь сразу при нажатии
+        ctx.beginPath();
+        ctx.moveTo(lastX, lastY);
+        ctx.lineTo(lastX, lastY);
+        ctx.stroke();
     }
     
     function draw(e) {
@@ -57,20 +66,27 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const [x, y] = getCanvasCoords(e);
         
-        ctx.beginPath();
-        ctx.moveTo(lastX, lastY);
         ctx.lineTo(x, y);
         ctx.stroke();
         
         [lastX, lastY] = [x, y];
-        
-        // Запускаем предсказание с задержкой
-        clearTimeout(predictionTimeout);
+
+        // Clear previous timeout and set new one
+        if (predictionTimeout) {
+            clearTimeout(predictionTimeout);
+        }
         predictionTimeout = setTimeout(predictDigit, 200);
     }
     
     function stopDrawing() {
+        // Проверяем, что мы действительно рисовали
+        if (!isDrawing) return;
+        
         isDrawing = false;
+        if (predictionTimeout) {
+            clearTimeout(predictionTimeout);
+            predictionTimeout = null;
+        }
         predictDigit();
     }
     
@@ -79,8 +95,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const scaleX = canvas.width / rect.width;
         const scaleY = canvas.height / rect.height;
         
-        const clientX = e.clientX || e.touches[0].clientX;
-        const clientY = e.clientY || e.touches[0].clientY;
+        const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+        const clientY = e.clientY || (e.touches && e.touches[0].clientY);
         
         return [
             (clientX - rect.left) * scaleX,
@@ -90,6 +106,11 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Функция предсказания цифры
     async function predictDigit() {
+        // Don't predict if not drawing and canvas is empty
+        if (!isDrawing && isCanvasEmpty()) {
+            return;
+        }
+        
         const imageData = canvas.toDataURL('image/png');
         
         try {
@@ -103,24 +124,23 @@ document.addEventListener('DOMContentLoaded', function() {
             
             const result = await response.json();
             
-            // Обновляем интерфейс
+            // update inteface
             predictedDigitElement.textContent = result.predicted;
             const confidence = (result.probabilities[result.predicted] * 100).toFixed(1);
             confidenceElement.textContent = `${confidence}%`;
             
-            // Обновляем вероятности
+            // update probs
             result.probabilities.forEach((prob, i) => {
                 const percentage = (prob * 100).toFixed(1);
                 probValueElements[i].textContent = `${percentage}%`;
                 
                 const barFill = document.querySelector(`.prob-bar-fill[data-digit="${i}"]`);
                 barFill.style.width = `${percentage}%`;
-                
-                // Подсвечиваем максимальную вероятность
+
                 if (i === result.predicted) {
-                    barFill.style.backgroundColor = '#e74c3c';
-                } else {
                     barFill.style.backgroundColor = '#2ecc71';
+                } else {
+                    barFill.style.backgroundColor = '#e74c3c';
                 }
             });
             
@@ -129,7 +149,14 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
-    // Очистка canvas
+    function isCanvasEmpty() {
+        const pixelBuffer = new Uint32Array(
+            ctx.getImageData(0, 0, canvas.width, canvas.height).data.buffer
+        );
+        return !pixelBuffer.some(color => color !== 0);
+    }
+    
+    // clear canvas
     function clearCanvas() {
         ctx.fillStyle = 'white';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -153,6 +180,7 @@ document.addEventListener('DOMContentLoaded', function() {
     canvas.addEventListener('mouseup', stopDrawing);
     canvas.addEventListener('mouseout', stopDrawing);
     
+    // Для touch устройств
     canvas.addEventListener('touchstart', (e) => {
         e.preventDefault();
         startDrawing(e.touches[0]);
@@ -163,10 +191,12 @@ document.addEventListener('DOMContentLoaded', function() {
         draw(e.touches[0]);
     });
     
-    canvas.addEventListener('touchend', stopDrawing);
+    canvas.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        stopDrawing();
+    });
     
     clearButton.addEventListener('click', clearCanvas);
-    
-    // Инициализация
+
     clearCanvas();
 });
