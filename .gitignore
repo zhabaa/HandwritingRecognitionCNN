@@ -4,5 +4,4 @@ Interface/data
 Interface/requirements.txt
 __pycache__
 Interface/run.bat
-mnist_test.csv
-mnist_train.csv
+/.vscode
